@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SQ Mixer</title>
+<style>
+  :root {
+    --bg:        #0F1319;
+    --surface:   #171D26;
+    --surface-2: #1E2631;
+    --line:      #2B3441;
+    --text:      #DCE3EB;
+    --dim:       #75818F;
+    --signal:    #E3A03C;
+    --pfl:       #45B5A4;
+    --mute:      #D2544C;
+    --green:     #4CA65C;
+    --red:       #E0523F;
+    --strip-w:   84px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- barre haute ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    flex: none;
+  }
+
+  .brand {
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-size: 12px;
+  }
+  .brand span { color: var(--signal); }
+
+  .status {
+    font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    color: var(--dim);
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .status b { color: var(--text); font-weight: 500; }
+  .warn { color: var(--red); }
+
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); display: inline-block; margin-right: 6px;
+  }
+  .dot.off { background: var(--red); }
+
+  .spacer { flex: 1; }
+
+  button {
+    font: inherit;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px 11px;
+    cursor: pointer;
+  }
+  button:hover { border-color: #3C4757; }
+  button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+  select {
+    font: inherit; font-size: 11px;
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px;
+  }
+
+  /* ---------- bandeau de sortie ---------- */
+  .master-meter {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    flex: none;
+  }
+  .master-meter .label {
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--dim); width: 92px; flex: none;
+  }
+  .hbar {
+    flex: 1; height: 9px; background: #0A0D12;
+    border: 1px solid var(--line); border-radius: 2px;
+    position: relative; overflow: hidden;
+  }
+  .hbar i {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    background: linear-gradient(90deg, var(--green) 0%, var(--green) 62%, var(--signal) 82%, var(--red) 100%);
+    background-size: 100vw 100%;
+    transition: width .05s linear;
+  }
+  .lim {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    padding: 3px 7px; border-radius: 3px;
+    background: #0A0D12; color: var(--dim); border: 1px solid var(--line);
+  }
+  .lim.on { background: var(--red); color: #fff; border-color: var(--red); }
+
+  /* ---------- tranches ---------- */
+  .rack {
+    flex: 1; display: flex; overflow-x: auto; overflow-y: hidden;
+    background: var(--bg);
+  }
+  .strips { display: flex; }
+
+  .strip {
+    width: var(--strip-w); flex: none;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    padding: 8px 6px 10px;
+    gap: 7px;
+  }
+  .strip.pfl-on { background: rgba(69,181,164,.07); }
+  .strip.muted .fader-wrap { opacity: .4; }
+
+  .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; color: var(--dim); text-align: center;
+  }
+
+  .name {
+    font: inherit; font-size: 11px; text-align: center;
+    background: transparent; border: none; border-bottom: 1px solid transparent;
+    color: var(--text); width: 100%; padding: 2px 0;
+  }
+  .name:hover { border-bottom-color: var(--line); }
+  .name:focus { outline: none; border-bottom-color: var(--signal); }
+
+  /* le duo fader + bargraphe : l'element signature */
+  .fader-wrap {
+    flex: 1; display: flex; gap: 6px; justify-content: center;
+    min-height: 140px; padding: 4px 0;
+  }
+
+  .meter {
+    width: 9px; background: #0A0D12;
+    border: 1px solid var(--line); border-radius: 2px;
+    position: relative; overflow: hidden;
+  }
+  .meter i {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+    background: linear-gradient(0deg, var(--green) 0%, var(--green) 60%, var(--signal) 84%, var(--red) 100%);
+    background-size: 100% 200px; background-position: bottom;
+  }
+  .meter u {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: var(--text); bottom: 0; opacity: 0;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    writing-mode: vertical-lr; direction: rtl;
+    width: 26px; height: 100%;
+    background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    width: 4px; background: var(--line); border-radius: 2px;
+  }
+  input[type=range]::-moz-range-track {
+    width: 4px; background: var(--line); border-radius: 2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 26px; height: 15px; border-radius: 3px;
+    background: linear-gradient(180deg, #4C5768, #333C4A);
+    border: 1px solid #56637A;
+    margin-left: -11px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.6);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 26px; height: 15px; border-radius: 3px;
+    background: linear-gradient(180deg, #4C5768, #333C4A);
+    border: 1px solid #56637A;
+    box-shadow: 0 1px 3px rgba(0,0,0,.6);
+  }
+  input[type=range]:focus-visible::-webkit-slider-thumb { border-color: var(--signal); }
+
+  .db {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; text-align: center; color: var(--dim);
+  }
+  .db.hot { color: var(--signal); }
+
+  .pan-row { position: relative; }
+  .pan-row::after {
+    content: ""; position: absolute; left: 50%; top: 0; width: 1px; height: 5px;
+    background: var(--dim); transform: translateX(-.5px); pointer-events: none;
+  }
+  input[type=range].pan-h {
+    writing-mode: horizontal-tb; direction: ltr;
+    width: 100%; height: 16px;
+  }
+  input[type=range].pan-h::-webkit-slider-runnable-track { height: 3px; width: auto; }
+  input[type=range].pan-h::-webkit-slider-thumb { width: 11px; height: 15px; margin-left: 0; margin-top: -6px; }
+  input[type=range].pan-h::-moz-range-track { height: 3px; width: auto; }
+  input[type=range].pan-h::-moz-range-thumb { width: 11px; height: 15px; }
+
+  .keys { display: flex; gap: 5px; }
+  .key {
+    flex: 1; font-size: 10px; font-weight: 600; letter-spacing: .06em;
+    padding: 7px 0; border-radius: 3px;
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--dim);
+    cursor: pointer;
+  }
+  .key.on-mute { background: var(--mute); border-color: var(--mute); color: #fff; }
+  .key.on-pfl  { background: var(--pfl);  border-color: var(--pfl);  color: #06201C; }
+
+  /* ---------- tranche master ---------- */
+  .master {
+    width: 108px; flex: none;
+    background: var(--surface);
+    border-left: 2px solid var(--signal);
+    position: sticky; right: 0;
+  }
+  .master .name { font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+
+  .empty {
+    padding: 40px; color: var(--dim); font-size: 13px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hbar i { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">SQ <span>Mixer</span></div>
+  <div class="status">
+    <span><span class="dot" id="dot"></span><b id="rate">—</b></span>
+    <span>tampon <b id="fill">—</b></span>
+    <span id="xrun">coupures <b>0</b></span>
+  </div>
+  <div class="spacer"></div>
+  <select id="presets"><option value="">Charger un preset…</option></select>
+  <button id="save">Enregistrer le preset</button>
+  <button id="clear">Arrêter l'écoute casque</button>
+</header>
+
+<div class="master-meter">
+  <div class="label">Envoi vers OBS</div>
+  <div class="hbar"><i id="mainL"></i></div>
+  <div class="hbar"><i id="mainR"></i></div>
+  <div class="lim" id="lim">LIMITEUR</div>
+</div>
+
+<div class="rack">
+  <div class="strips" id="strips"><div class="empty">Chargement des tranches…</div></div>
+  <div class="strip master" id="master"></div>
+</div>
+
+<script>
+const OFF = -120;
+
+// Course du fader calquee sur une console : precision autour du 0 dB.
+function posToDb(p) {
+  if (p <= 0) return OFF;
+  if (p < 25)  return -60 + (p / 25) * 30;
+  if (p < 50)  return -30 + ((p - 25) / 25) * 15;
+  if (p < 78)  return -15 + ((p - 50) / 28) * 15;
+  return ((p - 78) / 22) * 10;
+}
+function dbToPos(db) {
+  if (db <= OFF) return 0;
+  if (db < -30) return Math.max(1, ((db + 60) / 30) * 25);
+  if (db < -15) return 25 + ((db + 30) / 15) * 25;
+  if (db < 0)   return 50 + ((db + 15) / 15) * 28;
+  return 78 + (db / 10) * 22;
+}
+function meterHeight(db) {
+  if (db <= -60) return 0;
+  if (db >= 0) return 100;
+  return db >= -20 ? 50 + ((db + 20) / 20) * 50 : ((db + 60) / 40) * 50;
+}
+function fmtDb(db) {
+  if (db <= OFF) return "OFF";
+  return (db > 0 ? "+" : "") + db.toFixed(1);
+}
+
+let state = null;
+const els = [];
+const pending = new Map();
+
+async function post(url, body) {
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+}
+
+// On regroupe les envois : un fader genere des dizaines d'evenements.
+function push(index, patch) {
+  pending.set(index, Object.assign(pending.get(index) || {}, patch));
+  if (push.timer) return;
+  push.timer = setTimeout(() => {
+    push.timer = null;
+    for (const [i, p] of pending) post(`/api/channel/${i}`, p);
+    pending.clear();
+  }, 50);
+}
+
+function buildStrip(ch, i) {
+  const el = document.createElement("div");
+  el.className = "strip";
+  el.innerHTML = `
+    <div class="num">${String(i + 1).padStart(2, "0")}</div>
+    <input class="name" value="${ch.name.replace(/"/g, "&quot;")}" spellcheck="false">
+    <div class="fader-wrap">
+      <div class="meter"><i></i><u></u></div>
+      <input type="range" min="0" max="100" step="0.5" value="${dbToPos(ch.gain_db)}"
+             aria-label="Niveau ${ch.name}">
+    </div>
+    <div class="db">${fmtDb(ch.gain_db)}</div>
+    <div class="pan-row">
+      <input type="range" class="pan-h" min="-1" max="1" step="0.05" value="${ch.pan}"
+             aria-label="Panoramique ${ch.name}" title="Double-clic pour recentrer">
+    </div>
+    <div class="keys">
+      <button class="key mute">MUTE</button>
+      <button class="key pfl">PFL</button>
+    </div>`;
+
+  const name  = el.querySelector(".name");
+  const fader = el.querySelector('.fader-wrap input[type=range]');
+  const pan   = el.querySelector(".pan-h");
+  const dbEl  = el.querySelector(".db");
+  const mute  = el.querySelector(".mute");
+  const pfl   = el.querySelector(".pfl");
+  const bar   = el.querySelector(".meter i");
+  const hold  = el.querySelector(".meter u");
+
+  function paintKeys() {
+    mute.classList.toggle("on-mute", ch.mute);
+    pfl.classList.toggle("on-pfl", ch.pfl);
+    el.classList.toggle("muted", ch.mute);
+    el.classList.toggle("pfl-on", ch.pfl);
+  }
+
+  fader.addEventListener("input", () => {
+    ch.gain_db = Math.round(posToDb(+fader.value) * 10) / 10;
+    dbEl.textContent = fmtDb(ch.gain_db);
+    dbEl.classList.toggle("hot", ch.gain_db > 0);
+    push(i, { gain_db: ch.gain_db });
+  });
+  fader.addEventListener("dblclick", () => {
+    ch.gain_db = 0;
+    fader.value = dbToPos(0);
+    dbEl.textContent = "0.0";
+    push(i, { gain_db: 0 });
+  });
+  pan.addEventListener("input", () => {
+    ch.pan = +pan.value;
+    push(i, { pan: ch.pan });
+  });
+  pan.addEventListener("dblclick", () => {
+    ch.pan = 0;
+    pan.value = 0;
+    push(i, { pan: 0 });
+  });
+  name.addEventListener("change", () => {
+    ch.name = name.value;
+    push(i, { name: ch.name });
+  });
+  mute.addEventListener("click", () => {
+    ch.mute = !ch.mute; paintKeys(); push(i, { mute: ch.mute });
+  });
+  pfl.addEventListener("click", () => {
+    ch.pfl = !ch.pfl; paintKeys(); push(i, { pfl: ch.pfl });
+  });
+
+  paintKeys();
+  dbEl.classList.toggle("hot", ch.gain_db > 0);
+  els.push({ bar, hold, peak: 0, peakAt: 0 });
+  return el;
+}
+
+function buildMaster() {
+  const m = document.getElementById("master");
+  m.innerHTML = `
+    <div class="num">OUT</div>
+    <input class="name" value="MASTER" readonly>
+    <div class="fader-wrap">
+      <input type="range" min="0" max="100" step="0.5"
+             value="${dbToPos(state.master_gain_db)}" aria-label="Niveau de sortie">
+    </div>
+    <div class="db" id="mdb">${fmtDb(state.master_gain_db)}</div>
+    <div class="keys"><button class="key mute" style="flex:1">COUPER</button></div>
+    <div class="num" style="margin-top:8px">CASQUE</div>
+    <input type="range" class="pan-h" min="-60" max="6" step="1"
+           value="${state.monitor_gain_db}" id="mon" aria-label="Niveau casque">
+    <div class="db" id="mondb">${fmtDb(state.monitor_gain_db)}</div>`;
+
+  const f = m.querySelector('.fader-wrap input');
+  const d = m.querySelector("#mdb");
+  const k = m.querySelector(".mute");
+  const mon = m.querySelector("#mon");
+  const mondb = m.querySelector("#mondb");
+
+  f.addEventListener("input", () => {
+    state.master_gain_db = Math.round(posToDb(+f.value) * 10) / 10;
+    d.textContent = fmtDb(state.master_gain_db);
+    d.classList.toggle("hot", state.master_gain_db > 0);
+    post("/api/master", { master_gain_db: state.master_gain_db });
+  });
+  k.addEventListener("click", () => {
+    state.master_mute = !state.master_mute;
+    k.classList.toggle("on-mute", state.master_mute);
+    post("/api/master", { master_mute: state.master_mute });
+  });
+  mon.addEventListener("input", () => {
+    state.monitor_gain_db = +mon.value;
+    mondb.textContent = fmtDb(state.monitor_gain_db);
+    post("/api/master", { monitor_gain_db: state.monitor_gain_db });
+  });
+  k.classList.toggle("on-mute", state.master_mute);
+}
+
+async function init() {
+  state = await (await fetch("/api/state")).json();
+  document.getElementById("rate").textContent = (state.samplerate / 1000) + " kHz";
+
+  const rack = document.getElementById("strips");
+  rack.innerHTML = "";
+  state.channels.forEach((ch, i) => rack.appendChild(buildStrip(ch, i)));
+  buildMaster();
+
+  const sel = document.getElementById("presets");
+  state.presets.forEach(p => sel.add(new Option(p, p)));
+  sel.addEventListener("change", async () => {
+    if (!sel.value) return;
+    await post(`/api/preset/${sel.value}/load`);
+    location.reload();
+  });
+
+  document.getElementById("save").addEventListener("click", async () => {
+    const name = prompt("Nom du preset", "Culte dimanche");
+    if (!name) return;
+    await post(`/api/preset/${encodeURIComponent(name)}`);
+    location.reload();
+  });
+
+  document.getElementById("clear").addEventListener("click", async () => {
+    await post("/api/clear-pfl");
+    location.reload();
+  });
+
+  connect();
+}
+
+function connect() {
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  const dot = document.getElementById("dot");
+  const L = document.getElementById("mainL");
+  const R = document.getElementById("mainR");
+  const lim = document.getElementById("lim");
+  const fill = document.getElementById("fill");
+  const xrun = document.getElementById("xrun");
+
+  ws.onopen = () => dot.classList.remove("off");
+  ws.onclose = () => { dot.classList.add("off"); setTimeout(connect, 1500); };
+
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    const now = performance.now();
+
+    m.channels.forEach((db, i) => {
+      const e = els[i];
+      if (!e) return;
+      const h = meterHeight(db);
+      e.bar.style.height = h + "%";
+      if (h >= e.peak || now - e.peakAt > 1200) { e.peak = h; e.peakAt = now; }
+      e.hold.style.bottom = e.peak + "%";
+      e.hold.style.opacity = e.peak > 0 ? .8 : 0;
+    });
+
+    L.style.width = meterHeight(m.main[0]) + "%";
+    R.style.width = meterHeight(m.main[1]) + "%";
+    lim.classList.toggle("on", m.limiter);
+    fill.textContent = m.fill_ms + " ms";
+
+    const bad = m.underruns + m.overruns;
+    xrun.innerHTML = `coupures <b>${bad}</b>`;
+    xrun.classList.toggle("warn", bad > 0);
+  };
+}
+
+init();
+</script>
+</body>
+</html>

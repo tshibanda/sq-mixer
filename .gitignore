@@ -1,0 +1,19 @@
+# Environnement Python
+.venv/
+__pycache__/
+*.pyc
+
+# Build PyInstaller
+build/
+dist/
+*.spec
+
+# Etat local de la regie : propre a chaque machine
+config.json
+presets/*.json
+!presets/.gitkeep
+
+# Systeme
+Thumbs.db
+desktop.ini
+.DS_Store
