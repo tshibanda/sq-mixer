@@ -442,8 +442,23 @@ function buildMaster() {
   k.classList.toggle("on-mute", state.master_mute);
 }
 
+// Le navigateur peut s'ouvrir avant que le moteur audio soit pret
+// (demarrer.bat ne fait qu'attendre un delai fixe). On reessaie donc
+// jusqu'a ce que le serveur reponde, au lieu d'echouer silencieusement.
+async function fetchState() {
+  while (true) {
+    try {
+      const res = await fetch("/api/state");
+      if (res.ok) return await res.json();
+    } catch (e) {
+      // moteur pas encore demarre
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
 async function init() {
-  state = await (await fetch("/api/state")).json();
+  state = await fetchState();
   document.getElementById("rate").textContent = (state.samplerate / 1000) + " kHz";
 
   const rack = document.getElementById("strips");
