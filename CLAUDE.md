@@ -34,6 +34,7 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
 | `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
+| `mettre_a_jour.bat` | Recale le dossier sur `origin/main` (GitHub) sans toucher `config.json`/`presets/`. |
 | `construire_exe.bat` | Compile un exécutable autonome via PyInstaller. |
 | `creer_raccourci.bat` | Crée le raccourci bureau. |
 

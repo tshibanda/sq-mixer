@@ -34,6 +34,10 @@ Placez le dossier dans un endroit stable (`C:\regie` par exemple), puis :
 
 - `demarrer.bat` — lance tout ; crée l'environnement Python au premier appel
 - `creer_raccourci.bat` — pose un raccourci sur le Bureau (une seule fois)
+- `mettre_a_jour.bat` — récupère les dernières modifications depuis
+  [GitHub](https://github.com/tshibanda/sq-mixer) ; à relancer après chaque
+  mise à jour de l'application. Ne touche jamais `config.json` ni
+  `presets\` (propres à cette machine)
 - `construire_exe.bat` — produit `dist\SQ Mixer.exe`, autonome (optionnel)
 
 L'interface s'ouvre sur `http://localhost:8770`.
