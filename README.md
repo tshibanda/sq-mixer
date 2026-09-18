@@ -68,9 +68,11 @@ Une seule source suffit : le mixage se fait dans l'application.
 | PFL | Envoie le canal au casque seul, sans toucher au direct |
 | Clic sur le nom | Renommer la tranche |
 
-Au démarrage, tout est sur MUTE avec les faders à OFF — volontaire, pour
-qu'aucun son ne parte par surprise. Enregistrez un preset une fois vos
-niveaux calés.
+Au démarrage, le preset nommé par `default_preset` dans `config.json`
+(« Culte dimanche » par défaut) est chargé automatiquement s'il existe.
+S'il est absent, tout reste sur MUTE avec les faders à OFF — pour qu'aucun
+son ne parte par surprise. Videz `default_preset` dans `config.json` pour
+revenir à un démarrage toujours MUTE.
 
 ## Diagnostic
 

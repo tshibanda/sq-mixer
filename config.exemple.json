@@ -8,5 +8,6 @@
   "master_gain_db": 0.0,
   "master_mute": false,
   "monitor_gain_db": -6.0,
-  "limiter_ceiling_db": -1.0
+  "limiter_ceiling_db": -1.0,
+  "default_preset": "Culte dimanche"
 }

@@ -80,6 +80,9 @@ def default_config():
         "master_mute": False,
         "monitor_gain_db": -6.0,
         "limiter_ceiling_db": -1.0,
+        # Charge automatiquement ce preset au demarrage, au lieu de partir
+        # tout MUTE. Laisser vide ("") pour revenir au comportement prudent.
+        "default_preset": "Culte dimanche",
         "channels": [
             {
                 "name": DEFAULT_CHANNEL_NAMES[i] if i < len(DEFAULT_CHANNEL_NAMES) else f"Canal {i + 1}",
@@ -542,6 +545,24 @@ def autodetect(cfg):
 
 
 # ---------------------------------------------------------------------------
+# Presets
+# ---------------------------------------------------------------------------
+
+def apply_preset(engine, name):
+    """Charge le preset `name` dans engine.cfg. Renvoie False s'il n'existe pas."""
+    path = PRESET_DIR / f"{name}.json"
+    if not path.exists():
+        return False
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for i, ch in enumerate(data.get("channels", [])[: engine.n_in]):
+        engine.cfg["channels"][i].update(ch)
+    engine.cfg["master_gain_db"] = data.get("master_gain_db", 0.0)
+    engine.cfg["monitor_gain_db"] = data.get("monitor_gain_db", -6.0)
+    engine.rebuild_matrices()
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Serveur
 # ---------------------------------------------------------------------------
 
@@ -615,15 +636,8 @@ def build_app(engine, config_path):
 
     @app.post("/api/preset/{name}/load")
     async def load_preset(name: str):
-        path = PRESET_DIR / f"{name}.json"
-        if not path.exists():
+        if not apply_preset(engine, name):
             return JSONResponse({"error": "preset introuvable"}, status_code=404)
-        data = json.loads(path.read_text(encoding="utf-8"))
-        for i, ch in enumerate(data.get("channels", [])[: engine.n_in]):
-            engine.cfg["channels"][i].update(ch)
-        engine.cfg["master_gain_db"] = data.get("master_gain_db", 0.0)
-        engine.cfg["monitor_gain_db"] = data.get("monitor_gain_db", -6.0)
-        engine.rebuild_matrices()
         return {"ok": True}
 
     @app.websocket("/ws")
@@ -682,6 +696,13 @@ def main():
         print("*** et non vers OBS. Corrigez main_device dans config.json. ***\n")
 
     engine = MixerEngine(runtime)
+
+    default_preset = cfg.get("default_preset")
+    if default_preset:
+        if apply_preset(engine, default_preset):
+            print(f"Preset charge au demarrage : {default_preset}")
+        else:
+            print(f"Preset par defaut introuvable : presets/{default_preset}.json (demarrage a MUTE)")
 
     try:
         engine.start()

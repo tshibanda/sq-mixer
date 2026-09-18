@@ -91,6 +91,14 @@ deux restait vide. Les sources sont mono par défaut.
 **Toute exception dans un callback audio doit être capturée.** PortAudio
 arrête le flux sans rien dire.
 
+**Preset charge automatiquement au demarrage.** `main()` applique
+`cfg["default_preset"]` (via `apply_preset()`) juste apres avoir construit
+`MixerEngine`, avant `engine.start()` : le mix part directement sur les
+niveaux du dernier preset enregistre, plutot que tout MUTE. Ce n'est plus
+la demarche "rien ne part par surprise" du depart — choix explicite de
+l'utilisateur pour ne plus recaler les niveaux a chaque lancement. Pour
+revenir au demarrage prudent, vider `default_preset` dans `config.json`.
+
 ## Réglages côté console (hors code, mais bloquants)
 
 Ces réglages SQ conditionnent la présence de signal sur l'USB :
