@@ -13,6 +13,10 @@ config.json
 presets/*.json
 !presets/.gitkeep
 
+# Preset livre avec le depot : charge par defaut au demarrage
+# (default_preset dans config.json / config.exemple.json)
+!presets/Culte dimanche.json
+
 # Systeme
 Thumbs.db
 desktop.ini
