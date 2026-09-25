@@ -34,7 +34,7 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
 | `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
-| `demarrage_auto.bat` | Pose/retire une tâche planifiée (`schtasks`, déclencheur `onlogon`) qui lance `demarrer.bat`. |
+| `demarrage_auto.bat` | Pose/retire l'auto-lancement de `demarrer.bat` : tâche planifiée (`schtasks`, déclencheur `onlogon`), avec repli sur `HKCU\...\Run` si refusée. |
 | `mettre_a_jour.bat` | Recale le dossier sur `origin/main` (GitHub) sans toucher `config.json`/`presets/`. |
 | `construire_exe.bat` | Compile un exécutable autonome via PyInstaller. |
 | `creer_raccourci.bat` | Crée le raccourci bureau. |
@@ -109,6 +109,16 @@ script qui l'a cree. Ca s'est reproduit malgre un raccourci confirme
 present. `demarrage_auto.bat` utilise desormais `schtasks` (declencheur
 `onlogon`, `/rl limited`) : la tache a un historique consultable dans le
 Planificateur de taches, contrairement a un raccourci.
+
+**`schtasks` peut aussi etre refuse.** Constate en usage reel (PC de
+regie gere) : `schtasks /create` echoue avec "Erreur : Acces refuse",
+meme avec `/rl limited` et sans avoir besoin d'admin habituellement —
+politique locale ou antivirus qui bloque la creation de taches
+planifiees specifiquement. `demarrage_auto.bat` detecte l'echec et se
+rabat automatiquement sur une entree `HKCU\Software\Microsoft\Windows\
+CurrentVersion\Run`, qui n'a jamais besoin de droits admin et est
+rarement bloquee (mecanisme utilise par la plupart des applications
+grand public pour se lancer au demarrage).
 
 ## Réglages côté console (hors code, mais bloquants)
 
