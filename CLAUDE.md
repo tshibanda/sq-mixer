@@ -34,7 +34,7 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
 | `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
-| `demarrage_auto.bat` | Pose/retire un raccourci vers `demarrer.bat` dans le dossier Démarrage Windows. |
+| `demarrage_auto.bat` | Pose/retire une tâche planifiée (`schtasks`, déclencheur `onlogon`) qui lance `demarrer.bat`. |
 | `mettre_a_jour.bat` | Recale le dossier sur `origin/main` (GitHub) sans toucher `config.json`/`presets/`. |
 | `construire_exe.bat` | Compile un exécutable autonome via PyInstaller. |
 | `creer_raccourci.bat` | Crée le raccourci bureau. |
@@ -100,6 +100,15 @@ niveaux du dernier preset enregistre, plutot que tout MUTE. Ce n'est plus
 la demarche "rien ne part par surprise" du depart — choix explicite de
 l'utilisateur pour ne plus recaler les niveaux a chaque lancement. Pour
 revenir au demarrage prudent, vider `default_preset` dans `config.json`.
+
+**Pas de raccourci dans le dossier Demarrage pour l'auto-lancement.**
+Premiere version de `demarrage_auto.bat` : Windows (ou un antivirus) peut
+desactiver silencieusement un raccourci du dossier Demarrage — aucune
+erreur, aucun message, ca ne se voit meme pas au double-clic manuel du
+script qui l'a cree. Ca s'est reproduit malgre un raccourci confirme
+present. `demarrage_auto.bat` utilise desormais `schtasks` (declencheur
+`onlogon`, `/rl limited`) : la tache a un historique consultable dans le
+Planificateur de taches, contrairement a un raccourci.
 
 ## Réglages côté console (hors code, mais bloquants)
 

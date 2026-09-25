@@ -35,8 +35,10 @@ Placez le dossier dans un endroit stable (`C:\regie` par exemple), puis :
 - `demarrer.bat` — lance tout ; crée l'environnement Python au premier appel
 - `creer_raccourci.bat` — pose un raccourci sur le Bureau (une seule fois)
 - `demarrage_auto.bat` — lance SQ Mixer automatiquement à l'ouverture de
-  session Windows (raccourci dans le dossier Démarrage de l'utilisateur,
-  sans droits admin). `demarrage_auto.bat /off` pour annuler
+  session Windows (tâche planifiée « SQ Mixer », déclenchement à l'ouverture
+  de session, sans droits admin). `demarrage_auto.bat /off` pour annuler.
+  Diagnostic en cas de souci : Planificateur de tâches (`taskschd.msc`) >
+  Bibliothèque du Planificateur > SQ Mixer > onglet Historique
 - `mettre_a_jour.bat` — récupère les dernières modifications depuis
   [GitHub](https://github.com/tshibanda/sq-mixer) ; à relancer après chaque
   mise à jour de l'application. Ne touche jamais `config.json` ni
