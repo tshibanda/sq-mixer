@@ -54,6 +54,22 @@ else:
 BASE_DIR = RES_DIR
 PRESET_DIR = DATA_DIR / "presets"
 DEFAULT_CONFIG = DATA_DIR / "config.json"
+JOURNAL_PATH = DATA_DIR / "journal.log"
+
+
+def log(msg):
+    """Affiche et archive un message. Au demarrage automatique de Windows,
+    personne n'est devant l'ecran pour voir la console : le journal permet
+    de diagnostiquer apres coup."""
+    print(msg)
+    try:
+        with JOURNAL_PATH.open("a", encoding="utf-8") as f:
+            horodatage = time.strftime("%Y-%m-%d %H:%M:%S")
+            for ligne in str(msg).splitlines() or [""]:
+                f.write(f"[{horodatage}] {ligne}\n")
+    except OSError:
+        pass
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -653,6 +669,54 @@ def build_app(engine, config_path):
     return app
 
 
+# ---------------------------------------------------------------------------
+# Demarrage
+# ---------------------------------------------------------------------------
+
+def _detect_and_start(config_path):
+    """Detecte les peripheriques, construit le moteur et demarre l'audio.
+    Leve une exception (avec un message clair) a la moindre etape manquante.
+
+    Regroupe les 4 points d'echec possibles pour que l'appelant puisse tout
+    reessayer en bloc : au demarrage automatique de Windows, l'ASIO de la SQ
+    et VB-Cable peuvent mettre quelques dizaines de secondes a s'enumerer,
+    et rien ne garantit qu'ils soient prets au premier essai.
+    """
+    cfg = autodetect(load_config(config_path))
+
+    if cfg.get("input_device") is None:
+        raise RuntimeError("aucune entree ASIO SQ trouvee")
+    if cfg.get("main_device") is None:
+        raise RuntimeError("aucune sortie virtuelle trouvee (VB-Cable ?)")
+
+    save_config(cfg, config_path)
+
+    # Resolution nom -> index, a chaque essai : l'index peut changer d'une
+    # enumeration a l'autre.
+    runtime = dict(cfg)
+    runtime["input_device"] = resolve_device(cfg["input_device"], "input", "Entree ")
+    runtime["main_device"] = resolve_device(cfg["main_device"], "output", "Sortie ")
+    if runtime["input_device"] is None or runtime["main_device"] is None:
+        raise RuntimeError("peripherique introuvable parmi les entrees/sorties disponibles")
+
+    engine = MixerEngine(runtime)
+    try:
+        default_preset = cfg.get("default_preset")
+        if default_preset:
+            if apply_preset(engine, default_preset):
+                log(f"Preset charge au demarrage : {default_preset}")
+            else:
+                log(f"Preset par defaut introuvable : presets/{default_preset}.json (demarrage a MUTE)")
+        engine.start()
+    except Exception:
+        # Sans ca, le flux ASIO partiellement ouvert reste accroche et
+        # bloque tous les essais suivants (l'ASIO est mono-client).
+        engine.stop()
+        raise
+
+    return engine, runtime, cfg
+
+
 def main():
     parser = argparse.ArgumentParser(description="Surface de mixage pour Allen & Heath SQ")
     parser.add_argument("--list-devices", action="store_true", help="Lister les peripheriques audio")
@@ -668,58 +732,46 @@ def main():
         return 0
 
     config_path = Path(args.config)
-    cfg = autodetect(load_config(config_path))
 
-    if cfg.get("input_device") is None:
-        print("Aucune entree ASIO SQ trouvee. Lancez : python sq_mixer.py --list-devices")
-        print("puis renseignez input_device dans config.json.")
-        return 1
-    if cfg.get("main_device") is None:
-        print("Aucune sortie trouvee. Installez VB-Audio Virtual Cable, ou renseignez")
-        print("main_device dans config.json (voir --list-devices).")
-        return 1
-
-    save_config(cfg, config_path)
-
-    # Resolution nom -> index, a chaque lancement.
-    runtime = dict(cfg)
-    runtime["input_device"] = resolve_device(cfg["input_device"], "input", "Entree ")
-    runtime["main_device"] = resolve_device(cfg["main_device"], "output", "Sortie ")
-    if runtime["input_device"] is None or runtime["main_device"] is None:
-        print("\nPeripherique introuvable. Lancez : python sq_mixer.py --list-devices")
-        return 1
-
-    out_name = sd.query_devices(runtime["main_device"])["name"].upper()
-    if "CABLE" not in out_name and "VB-AUDIO" not in out_name:
-        print("\n*** ATTENTION : la sortie n'est pas un cable virtuel. ***")
-        print(f"*** Le son ira vers \"{sd.query_devices(runtime['main_device'])['name']}\" ***")
-        print("*** et non vers OBS. Corrigez main_device dans config.json. ***\n")
-
-    engine = MixerEngine(runtime)
-
-    default_preset = cfg.get("default_preset")
-    if default_preset:
-        if apply_preset(engine, default_preset):
-            print(f"Preset charge au demarrage : {default_preset}")
-        else:
-            print(f"Preset par defaut introuvable : presets/{default_preset}.json (demarrage a MUTE)")
-
-    try:
-        engine.start()
-    except Exception as exc:
-        print(f"\nDemarrage audio impossible : {exc}\n")
-        print("Verifiez que : la SQ est allumee et branchee en USB-B,")
-        print("que la console et config.json sont sur la meme frequence,")
-        print("et qu'aucune autre application ne tient le driver ASIO.")
-        return 1
+    # Au demarrage automatique de Windows, l'ASIO de la SQ et VB-Cable
+    # peuvent mettre jusqu'a une minute ou deux a s'enumerer (USB, pilotes,
+    # antivirus qui scanne). Avant, un seul echec ici arretait tout
+    # silencieusement (personne devant l'ecran pour le relancer a la main).
+    MAX_WAIT = 120
+    INTERVAL = 5
+    deadline = time.time() + MAX_WAIT
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            engine, runtime, cfg = _detect_and_start(config_path)
+            break
+        except Exception as exc:
+            if time.time() >= deadline:
+                log(f"\nDemarrage audio impossible apres {attempt} essai(s) sur {MAX_WAIT}s : {exc}")
+                log("Verifiez que : la SQ est allumee et branchee en USB-B,")
+                log("que la console et config.json sont sur la meme frequence,")
+                log("et qu'aucune autre application ne tient le driver ASIO.")
+                return 1
+            if attempt == 1:
+                log(f"Moteur audio pas encore pret ({exc}).")
+                log(f"Nouvel essai toutes les {INTERVAL}s (jusqu'a {MAX_WAIT}s)...")
+            time.sleep(INTERVAL)
 
     engine.tone = args.tone
 
+    out_name = sd.query_devices(runtime["main_device"])["name"].upper()
+    if "CABLE" not in out_name and "VB-AUDIO" not in out_name:
+        log("\n*** ATTENTION : la sortie n'est pas un cable virtuel. ***")
+        log(f"*** Le son ira vers \"{sd.query_devices(runtime['main_device'])['name']}\" ***")
+        log("*** et non vers OBS. Corrigez main_device dans config.json. ***\n")
+
     in_dev = sd.query_devices(runtime["input_device"])
     out_dev = sd.query_devices(runtime["main_device"])
-    print(f"\nMoteur audio demarre  -  {engine.samplerate} Hz, {engine.n_in} canaux")
-    print(f"  entree  : [{runtime['input_device']}] {in_dev['name']}")
-    print(f"  sortie  : [{runtime['main_device']}] {out_dev['name']}")
+    log(f"\nMoteur audio demarre  -  {engine.samplerate} Hz, {engine.n_in} canaux"
+        + (f" (essai {attempt})" if attempt > 1 else ""))
+    log(f"  entree  : [{runtime['input_device']}] {in_dev['name']}")
+    log(f"  sortie  : [{runtime['main_device']}] {out_dev['name']}")
     if args.tone:
         print("\n  *** MODE TONALITE : 1 kHz envoye a la place du mix. ***")
         print("  *** Si OBS ne bouge pas, le probleme n'est pas dans le mixage. ***")

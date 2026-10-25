@@ -31,6 +31,7 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `ui.html` | Surface de contrôle, servie sur `/`. HTML/CSS/JS sans dépendance. |
 | `config.json` | Périphériques et réglages globaux. **Noms**, pas d'index. |
 | `presets/` | Presets de niveaux, un JSON par preset. |
+| `journal.log` | Généré par `log()` : trace des démarrages/erreurs, utile quand personne n'est devant la console (lancement automatique). |
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
 | `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
@@ -119,6 +120,23 @@ rabat automatiquement sur une entree `HKCU\Software\Microsoft\Windows\
 CurrentVersion\Run`, qui n'a jamais besoin de droits admin et est
 rarement bloquee (mecanisme utilise par la plupart des applications
 grand public pour se lancer au demarrage).
+
+**Le moteur audio doit reessayer, pas echouer une seule fois.** Constate
+en usage reel : au lancement automatique de Windows, l'ASIO de la SQ et
+VB-Cable ne sont pas toujours enumeres a temps (course avec l'USB, les
+pilotes, un antivirus qui scanne au demarrage) — et ca a pu se degrader
+"depuis quelques jours" sans rien changer au code, juste a cause du
+timing de boot qui a derive. Avant, `main()` echouait une seule fois et
+s'arretait : personne devant l'ecran au demarrage automatique pour
+relancer a la main, donc le serveur HTTP ne demarre jamais et le
+navigateur voit `ERR_CONNECTION_REFUSED` indefiniment, meme en
+rechargeant. `_detect_and_start()` regroupe la detection + construction
++ demarrage, et `main()` la reessaie toutes les 5s pendant 2 minutes
+avant d'abandonner. Sur echec, `engine.stop()` est appele avant de
+reessayer : sans ca, un flux ASIO partiellement ouvert reste accroche
+et bloque tous les essais suivants (l'ASIO est mono-client). Tout est
+aussi journalise dans `journal.log` (voir `log()`), puisque personne
+ne voit la console au demarrage automatique.
 
 ## Réglages côté console (hors code, mais bloquants)
 

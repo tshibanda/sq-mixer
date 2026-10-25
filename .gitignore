@@ -10,6 +10,7 @@ dist/
 
 # Etat local de la regie : propre a chaque machine
 config.json
+journal.log
 presets/*.json
 !presets/.gitkeep
 

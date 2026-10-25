@@ -86,6 +86,14 @@ revenir à un démarrage toujours MUTE.
 
 ## Diagnostic
 
+Au démarrage, le moteur réessaie de détecter l'ASIO de la SQ et VB-Cable
+pendant 2 minutes avant d'abandonner (l'USB met parfois du temps à être
+prêt après l'ouverture de session Windows). Si l'appli ne répond toujours
+pas sur `http://localhost:8770` après ça — au lancement automatique,
+personne n'est devant la console pour voir pourquoi — consultez
+`journal.log`, à côté de `sq_mixer.py` : il garde les messages de
+démarrage et d'erreur même quand la fenêtre n'a été vue par personne.
+
 ```
 python sq_mixer.py --list-devices   # lister les périphériques
 python sq_mixer.py --tone           # tonalité 1 kHz à la place du mix
