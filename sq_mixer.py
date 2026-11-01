@@ -248,6 +248,7 @@ class MixerEngine:
         self.last_error = None
         self.tone = False
         self.in_status = 0
+        self.in_callbacks = 0
         self.callback_errors = 0
         self.write_errors = 0
         self._threads = []
@@ -310,6 +311,10 @@ class MixerEngine:
     # -- callbacks ----------------------------------------------------------
 
     def _input_callback(self, indata, frames, time_info, status):
+        # Incremente avant tout : certains pilotes ASIO acceptent l'ouverture
+        # du flux sans jamais declencher ce callback (voir _detect_and_start,
+        # c'est ce compteur qui permet de detecter ce faux-demarrage).
+        self.in_callbacks += 1
         try:
             if status:
                 self.in_status += 1
@@ -708,6 +713,18 @@ def _detect_and_start(config_path):
             else:
                 log(f"Preset par defaut introuvable : presets/{default_preset}.json (demarrage a MUTE)")
         engine.start()
+
+        # sd.InputStream().start() peut reussir sans lever d'exception alors
+        # que le pilote ASIO ne declenche jamais vraiment le callback — vu en
+        # usage reel au demarrage automatique de Windows : le journal disait
+        # "Moteur audio demarre" mais les VU-metres restaient a zero. Sans
+        # cette verification, ce faux-demarrage n'etait jamais detecte ni
+        # reessaye.
+        time.sleep(1.0)
+        if engine.in_callbacks == 0:
+            raise RuntimeError("le flux ASIO ne declenche aucun callback (pilote pas reellement pret)")
+        if engine.main_ring.fill > engine.samplerate * 0.3:
+            raise RuntimeError("la sortie ne consomme pas les donnees (verifiez main_device)")
     except Exception:
         # Sans ca, le flux ASIO partiellement ouvert reste accroche et
         # bloque tous les essais suivants (l'ASIO est mono-client).
@@ -775,15 +792,6 @@ def main():
     if args.tone:
         print("\n  *** MODE TONALITE : 1 kHz envoye a la place du mix. ***")
         print("  *** Si OBS ne bouge pas, le probleme n'est pas dans le mixage. ***")
-
-    # Verification que la sortie consomme reellement les donnees : c'est
-    # exactement ce qui manquait quand le tampon saturait sans rien produire.
-    time.sleep(1.0)
-    if engine.main_ring.fill > engine.samplerate * 0.3:
-        print("\n*** La sortie ne consomme pas les donnees. ***")
-        if engine.last_error:
-            print(f"    Derniere erreur : {engine.last_error}")
-        print("    Essayez un autre main_device dans config.json.\n")
 
     try:
         import websockets  # noqa: F401

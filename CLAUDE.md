@@ -138,6 +138,22 @@ et bloque tous les essais suivants (l'ASIO est mono-client). Tout est
 aussi journalise dans `journal.log` (voir `log()`), puisque personne
 ne voit la console au demarrage automatique.
 
+**"Demarre" ne veut pas dire "recoit du son".** Suite directe du piege
+precedent : meme avec les reessais, `journal.log` a montre un demarrage
+"reussi" (aucune exception, peripheriques trouves) alors que les
+VU-metres restaient a zero — intermittent, certains demarrages
+seulement. `sd.InputStream().start()` peut reussir sans jamais
+declencher le callback audio si le pilote ASIO n'est pas *reellement*
+pret, meme s'il repond deja a l'enumeration (`resolve_device()` le
+trouve, mais ca ne verifie que la presence dans la liste, pas l'etat
+interne du pilote). `MixerEngine.in_callbacks` compte les appels reels
+a `_input_callback` ; `_detect_and_start()` attend 1s apres
+`engine.start()` et leve une exception si ce compteur est encore a
+zero (ou si `main_ring` ne se vide pas), ce qui declenche un reessai
+au lieu de se declarer faussement demarre. Le meme compteur permettrait
+de detecter un decrochage en cours de route (pas encore fait : seul le
+demarrage est verifie aujourd'hui).
+
 ## Réglages côté console (hors code, mais bloquants)
 
 Ces réglages SQ conditionnent la présence de signal sur l'USB :
