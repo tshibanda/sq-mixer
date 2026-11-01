@@ -154,6 +154,23 @@ au lieu de se declarer faussement demarre. Le meme compteur permettrait
 de detecter un decrochage en cours de route (pas encore fait : seul le
 demarrage est verifie aujourd'hui).
 
+**Une instance fantome bloque la suivante, en silence.** La tache
+planifiee (`demarrage_auto.bat`) relance l'appli a *chaque ouverture de
+session*, pas seulement au premier demarrage de Windows. Si une
+instance precedente tourne encore (fenetre jamais fermee, session
+jamais vraiment close), la nouvelle demarrait quand meme tout le
+moteur audio — `journal.log` montrait un demarrage audio reussi — puis
+`uvicorn.run()` echouait au moment de prendre le port 8770 (deja
+occupe par l'ancienne instance), sans que ca soit jamais journalise
+(cette ligne n'utilisait que `print()`) : plantage silencieux, aucune
+trace, symptome qui ressemblait a tort a un echec de demarrage audio.
+`main()` teste maintenant le port AVANT de toucher a l'audio
+(`_port_in_use()`) : si une instance tourne deja, la nouvelle se
+retire proprement (`return 0`, pas une erreur) au lieu de se battre
+pour le port et pour l'ASIO (mono-client). `uvicorn.run()` est aussi
+desormais dans un `try/except` qui journalise, pour ne plus jamais
+perdre la trace d'un echec a ce niveau.
+
 ## Réglages côté console (hors code, mais bloquants)
 
 Ces réglages SQ conditionnent la présence de signal sur l'USB :

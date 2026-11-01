@@ -21,6 +21,7 @@ import asyncio
 import json
 import math
 import os
+import socket
 import sys
 import threading
 import time
@@ -678,6 +679,21 @@ def build_app(engine, config_path):
 # Demarrage
 # ---------------------------------------------------------------------------
 
+def _port_in_use(host, port):
+    """Teste si le port est deja occupe (probablement une instance de
+    SQ Mixer deja lancee, la tache planifiee se declenchant a chaque
+    ouverture de session). Un `bind` echoue immediatement si c'est le cas,
+    sans avoir a toucher l'audio."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind((host if host != "0.0.0.0" else "", port))
+        return False
+    except OSError:
+        return True
+    finally:
+        probe.close()
+
+
 def _detect_and_start(config_path):
     """Detecte les peripheriques, construit le moteur et demarre l'audio.
     Leve une exception (avec un message clair) a la moindre etape manquante.
@@ -746,6 +762,16 @@ def main():
 
     if args.list_devices:
         list_devices()
+        return 0
+
+    # La tache planifiee (demarrage_auto.bat) relance l'appli a chaque
+    # ouverture de session. Si une instance precedente tourne encore
+    # (fenetre jamais fermee, session jamais vraiment close), la nouvelle
+    # ne doit pas se battre pour le meme port ni pour l'ASIO (mono-client) :
+    # elle doit juste s'effacer. Verifie avant meme de toucher l'audio.
+    if _port_in_use(args.host, args.port):
+        log(f"SQ Mixer tourne deja sur le port {args.port} (ou un autre programme "
+            "l'occupe). Fermeture de cette instance pour ne pas entrer en collision.")
         return 0
 
     config_path = Path(args.config)
@@ -827,6 +853,12 @@ def main():
     app = build_app(engine, config_path)
     try:
         uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    except Exception as exc:
+        # Sans ce log, un echec ici (port deja pris malgre le controle plus
+        # haut, droits reseau, etc.) ne laissait aucune trace : le moteur
+        # audio avait deja journalise son succes, et plus rien ensuite.
+        log(f"\nServeur web : impossible de demarrer sur le port {args.port} : {exc}")
+        return 1
     finally:
         engine.stop()
     return 0
