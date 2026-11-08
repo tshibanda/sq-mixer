@@ -41,17 +41,23 @@ REM se retrouver avec les deux methodes actives (lancement en double).
 schtasks /delete /tn "%NOM_TACHE%" /f >nul 2>&1
 reg delete "%CLE_REG%" /v "%NOM_TACHE%" /f >nul 2>&1
 
-schtasks /create /tn "%NOM_TACHE%" /tr "\"%CIBLE%\"" /sc onlogon /rl limited /f >nul 2>&1
+REM "cmd /c start ... /min ..." pour que la console du moteur ne s'affiche
+REM pas au premier plan a l'ouverture de session : elle demarre reduite
+REM dans la barre des taches (le navigateur, lui, s'ouvre normalement par-
+REM dessus, c'est une commande separee lancee par demarrer.bat). Inline,
+REM pas via une variable intermediaire : la chaine a des guillemets
+REM echappes au milieu, fragile a faire transiter par un "set".
+schtasks /create /tn "%NOM_TACHE%" /tr "cmd /c start \"\" /min \"%CIBLE%\"" /sc onlogon /rl limited /f >nul 2>&1
 if not errorlevel 1 (
     echo.
-    echo SQ Mixer demarrera desormais automatiquement a l'ouverture de session
-    echo ^(tache planifiee "%NOM_TACHE%"^).
+    echo SQ Mixer demarrera desormais automatiquement (fenetre reduite) a
+    echo l'ouverture de session ^(tache planifiee "%NOM_TACHE%"^).
     echo Pour annuler : demarrage_auto.bat /off
     goto :fin
 )
 
 echo Tache planifiee refusee sur cette machine, methode de secours ^(registre^)...
-reg add "%CLE_REG%" /v "%NOM_TACHE%" /t REG_SZ /d "\"%CIBLE%\"" /f
+reg add "%CLE_REG%" /v "%NOM_TACHE%" /t REG_SZ /d "cmd /c start \"\" /min \"%CIBLE%\"" /f
 if errorlevel 1 (
     echo.
     echo [ERREUR] Les deux methodes ont echoue. Cette machine bloque
@@ -59,8 +65,8 @@ if errorlevel 1 (
     echo Contactez la personne qui gere ce PC.
 ) else (
     echo.
-    echo SQ Mixer demarrera desormais automatiquement a l'ouverture de session
-    echo ^(entree de registre, methode de secours^).
+    echo SQ Mixer demarrera desormais automatiquement (fenetre reduite) a
+    echo l'ouverture de session ^(entree de registre, methode de secours^).
     echo Pour annuler : demarrage_auto.bat /off
 )
 

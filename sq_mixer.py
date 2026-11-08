@@ -82,6 +82,12 @@ DEFAULT_CHANNEL_NAMES = [
     "Tyrios", "M1", "M2", "M3",
 ]
 
+# VB-Cable a deja change le nom qu'il expose a Windows d'une mise a jour a
+# l'autre. "CABLE Input" reste le candidat prefere (c'est le sens attendu
+# par OBS, qui capte "CABLE Output"), mais on retombe sur des noms plus
+# generiques si ce nom precis n'est plus present.
+VB_CABLE_NAMES = ["CABLE Input", "VB-Audio Virtual Cable", "VB-Cable"]
+
 
 def default_config():
     return {
@@ -487,6 +493,11 @@ def resolve_device(spec, kind, label):
     Les index PortAudio changent d'une session a l'autre selon les
     peripheriques presents. Les enregistrer dans config.json revient a
     envoyer l'audio au hasard : on resout donc par nom a chaque lancement.
+
+    `spec` peut etre une liste de noms candidats (essayes dans l'ordre) :
+    VB-Cable a deja change le nom qu'il expose a Windows d'une mise a jour
+    a l'autre (ex: "CABLE Input" -> juste "VB-Audio Virtual Cable"), et un
+    seul nom fige finissait par ne plus jamais se resoudre.
     """
     devices = sd.query_devices()
     apis = sd.query_hostapis()
@@ -495,38 +506,52 @@ def resolve_device(spec, kind, label):
     if isinstance(spec, int):
         if not 0 <= spec < len(devices):
             print(f"{label} : index {spec} hors plage.")
-            return None
+            return None, None
         dev = devices[spec]
         if dev[key] < 1:
             print(f"{label} : [{spec}] {dev['name']} n'a pas d'{kind}.")
-            return None
-        return spec
+            return None, None
+        return spec, None
 
-    if not isinstance(spec, str):
-        return None
+    noms = [spec] if isinstance(spec, str) else list(spec) if spec else []
+    noms = [n for n in noms if isinstance(n, str)]
+    if not noms:
+        return None, None
 
-    needle = spec.upper()
-    cands = []
-    for idx, dev in enumerate(devices):
-        if dev[key] < 1 or needle not in dev["name"].upper():
-            continue
-        api = apis[dev["hostapi"]]["name"].upper()
-        if kind == "input":
-            rank = 0 if "ASIO" in api else 3
-        else:
-            rank = 0 if "WASAPI" in api else (1 if "DIRECTSOUND" in api else 2)
-        cands.append((rank, -dev[key], idx))
+    for nom in noms:
+        needle = nom.upper()
+        cands = []
+        for idx, dev in enumerate(devices):
+            if dev[key] < 1 or needle not in dev["name"].upper():
+                continue
+            api = apis[dev["hostapi"]]["name"].upper()
+            if kind == "input":
+                # Le plus de canaux possible : entre plusieurs ASIO, c'est
+                # la vraie interface 32 canaux qu'on veut, pas un sous-jeu.
+                rank = 0 if "ASIO" in api else 3
+                tie = -dev[key]
+            else:
+                # 2 canaux pile : le bus principal est stereo. Un nom de
+                # VB-Cable generique peut aussi matcher une variante
+                # multicanal (ex: "CABLE In 16 Ch") installee a cote —
+                # ce n'est pas elle qu'OBS capte en "CABLE Output".
+                rank = 0 if "WASAPI" in api else (1 if "DIRECTSOUND" in api else 2)
+                tie = abs(dev[key] - 2)
+            cands.append((rank, tie, idx))
 
-    if not cands:
-        print(f"{label} : aucun peripherique nomme \"{spec}\" n'est present.")
-        return None
+        if cands:
+            cands.sort()
+            idx = cands[0][2]
+            dev = devices[idx]
+            api = apis[dev["hostapi"]]["name"]
+            print(f"{label} : [{idx}] {dev['name']} ({api})")
+            # Le nom trouve (eventuellement different du 1er candidat) est
+            # remonte pour que l'appelant puisse corriger config.json.
+            return idx, (dev["name"] if nom != dev["name"] else None)
 
-    cands.sort()
-    idx = cands[0][2]
-    dev = devices[idx]
-    api = apis[dev["hostapi"]]["name"]
-    print(f"{label} : [{idx}] {dev['name']} ({api})")
-    return idx
+    liste = " / ".join(f'"{n}"' for n in noms)
+    print(f"{label} : aucun peripherique nomme {liste} n'est present.")
+    return None, None
 
 
 def autodetect(cfg):
@@ -558,9 +583,10 @@ def autodetect(cfg):
 
     if cfg.get("main_device") is None:
         for dev in devices:
-            if dev["max_output_channels"] >= 2 and "CABLE INPUT" in dev["name"].upper():
-                cfg["main_device"] = "CABLE Input"
-                print("Sortie OBS detectee : CABLE Input")
+            name = dev["name"].upper()
+            if dev["max_output_channels"] >= 2 and any(n.upper() in name for n in VB_CABLE_NAMES):
+                cfg["main_device"] = dev["name"]
+                print(f"Sortie OBS detectee : {dev['name']}")
                 break
 
     return cfg
@@ -715,8 +741,21 @@ def _detect_and_start(config_path):
     # Resolution nom -> index, a chaque essai : l'index peut changer d'une
     # enumeration a l'autre.
     runtime = dict(cfg)
-    runtime["input_device"] = resolve_device(cfg["input_device"], "input", "Entree ")
-    runtime["main_device"] = resolve_device(cfg["main_device"], "output", "Sortie ")
+    runtime["input_device"], _ = resolve_device(cfg["input_device"], "input", "Entree ")
+
+    # Le nom enregistre est essaye en premier (il reste le bon dans la
+    # grande majorite des cas) ; les autres noms connus de VB-Cable servent
+    # de secours s'il a change entre deux mises a jour du pilote.
+    candidats_sortie = [cfg["main_device"]] + [
+        n for n in VB_CABLE_NAMES if n.upper() != str(cfg["main_device"]).upper()
+    ]
+    runtime["main_device"], nom_corrige = resolve_device(candidats_sortie, "output", "Sortie ")
+    if nom_corrige:
+        log(f"Sortie VB-Cable renommee par Windows : \"{cfg['main_device']}\" -> "
+            f"\"{nom_corrige}\". config.json mis a jour.")
+        cfg["main_device"] = nom_corrige
+        save_config(cfg, config_path)
+
     if runtime["input_device"] is None or runtime["main_device"] is None:
         raise RuntimeError("peripherique introuvable parmi les entrees/sorties disponibles")
 

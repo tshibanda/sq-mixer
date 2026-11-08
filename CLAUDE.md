@@ -35,7 +35,7 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
 | `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
-| `demarrage_auto.bat` | Pose/retire l'auto-lancement de `demarrer.bat` : tâche planifiée (`schtasks`, déclencheur `onlogon`), avec repli sur `HKCU\...\Run` si refusée. |
+| `demarrage_auto.bat` | Pose/retire l'auto-lancement de `demarrer.bat`, fenêtre réduite (`start /min`) : tâche planifiée (`schtasks`, déclencheur `onlogon`), avec repli sur `HKCU\...\Run` si refusée. |
 | `mettre_a_jour.bat` | Recale le dossier sur `origin/main` (GitHub) sans toucher `config.json`/`presets/`. |
 | `construire_exe.bat` | Compile un exécutable autonome via PyInstaller. |
 | `creer_raccourci.bat` | Crée le raccourci bureau. |
@@ -121,6 +121,16 @@ CurrentVersion\Run`, qui n'a jamais besoin de droits admin et est
 rarement bloquee (mecanisme utilise par la plupart des applications
 grand public pour se lancer au demarrage).
 
+**Lancer une tache/entree de registre reduite : `cmd /c start "" /min
+"cible"`, inline.** `schtasks /create /tr` et `reg add /d` n'ont pas
+d'option directe pour demarrer la fenetre reduite ; il faut passer par
+`start /min`. Le premier `""` est le titre vide attendu par `start`
+avant la commande, pas une erreur de frappe — sans lui, `start` prend
+le chemin cible pour un titre. Ecrit inline dans la commande `schtasks`/
+`reg`, jamais via une variable `set` intermediaire : la chaine contient
+des guillemets echappes (`\"`) qui ne survivent pas franchement a un
+aller-retour par une variable d'environnement batch.
+
 **Le moteur audio doit reessayer, pas echouer une seule fois.** Constate
 en usage reel : au lancement automatique de Windows, l'ASIO de la SQ et
 VB-Cable ne sont pas toujours enumeres a temps (course avec l'USB, les
@@ -170,6 +180,24 @@ retire proprement (`return 0`, pas une erreur) au lieu de se battre
 pour le port et pour l'ASIO (mono-client). `uvicorn.run()` est aussi
 desormais dans un `try/except` qui journalise, pour ne plus jamais
 perdre la trace d'un echec a ce niveau.
+
+**VB-Cable change le nom qu'il expose a Windows.** Constate en usage
+reel : apres une mise a jour du pilote, le peripherique que Windows
+affichait comme "CABLE Input" est redevenu un "Haut-parleurs" generique
+(le nom technique que PortAudio lit n'est pas force le nom "convivial"
+affiche dans Parametres > Son), et un second peripherique est apparu a
+cote ("CABLE In 16 Ch", une variante multicanal du meme pilote). Un nom
+fige dans `config.json` ne se resout alors plus JAMAIS, quel que soit
+le nombre de reessais (`resolve_device()` cherche un nom exact, pas un
+etat transitoire). `resolve_device()` accepte maintenant une LISTE de
+noms candidats (`VB_CABLE_NAMES`), essayes dans l'ordre ; si le nom
+enregistre echoue mais qu'un nom de secours marche, `config.json` est
+corrige automatiquement (log explicite : "Sortie VB-Cable renommee par
+Windows"). Piege au passage : classer les candidats de sortie par
+"le plus de canaux" (comme pour l'entree ASIO, ou on veut les 32 canaux
+complets) aurait fait choisir a tort le "CABLE In 16 Ch" plutot que le
+vrai cable stereo — le tri de sortie privilegie desormais le peripherique
+le plus proche de 2 canaux, pas le plus gros.
 
 ## Réglages côté console (hors code, mais bloquants)
 
