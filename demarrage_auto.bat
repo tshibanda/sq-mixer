@@ -33,31 +33,34 @@ if not exist "demarrer.bat" (
     echo [ERREUR] demarrer.bat introuvable dans %CD%
     goto :fin
 )
+if not exist "demarrer_cache.vbs" (
+    echo [ERREUR] demarrer_cache.vbs introuvable dans %CD%
+    goto :fin
+)
 
-set "CIBLE=%~dp0demarrer.bat"
+set "VBS=%~dp0demarrer_cache.vbs"
 
 REM On retire d'abord une eventuelle tache/entree precedente, pour ne pas
 REM se retrouver avec les deux methodes actives (lancement en double).
 schtasks /delete /tn "%NOM_TACHE%" /f >nul 2>&1
 reg delete "%CLE_REG%" /v "%NOM_TACHE%" /f >nul 2>&1
 
-REM "cmd /c start ... /min ..." pour que la console du moteur ne s'affiche
-REM pas au premier plan a l'ouverture de session : elle demarre reduite
-REM dans la barre des taches (le navigateur, lui, s'ouvre normalement par-
-REM dessus, c'est une commande separee lancee par demarrer.bat). Inline,
-REM pas via une variable intermediaire : la chaine a des guillemets
-REM echappes au milieu, fragile a faire transiter par un "set".
-schtasks /create /tn "%NOM_TACHE%" /tr "cmd /c start \"\" /min \"%CIBLE%\"" /sc onlogon /rl limited /f >nul 2>&1
+REM Passe par demarrer_cache.vbs (WScript.Shell.Run ..., 0, False) : lance
+REM demarrer.bat sans aucune fenetre ni icone dans la barre des taches,
+REM impossible a fermer par megarde pendant un direct. Un simple
+REM "start /min" laisse encore une icone cliquable-fermable ; ca ne
+REM suffisait plus.
+schtasks /create /tn "%NOM_TACHE%" /tr "wscript.exe \"%VBS%\"" /sc onlogon /rl limited /f >nul 2>&1
 if not errorlevel 1 (
     echo.
-    echo SQ Mixer demarrera desormais automatiquement (fenetre reduite) a
-    echo l'ouverture de session ^(tache planifiee "%NOM_TACHE%"^).
-    echo Pour annuler : demarrage_auto.bat /off
+    echo SQ Mixer demarrera desormais automatiquement en arriere-plan
+    echo ^(sans fenetre^) a l'ouverture de session ^(tache planifiee
+    echo "%NOM_TACHE%"^). Pour annuler : demarrage_auto.bat /off
     goto :fin
 )
 
 echo Tache planifiee refusee sur cette machine, methode de secours ^(registre^)...
-reg add "%CLE_REG%" /v "%NOM_TACHE%" /t REG_SZ /d "cmd /c start \"\" /min \"%CIBLE%\"" /f
+reg add "%CLE_REG%" /v "%NOM_TACHE%" /t REG_SZ /d "wscript.exe \"%VBS%\"" /f
 if errorlevel 1 (
     echo.
     echo [ERREUR] Les deux methodes ont echoue. Cette machine bloque
@@ -65,9 +68,9 @@ if errorlevel 1 (
     echo Contactez la personne qui gere ce PC.
 ) else (
     echo.
-    echo SQ Mixer demarrera desormais automatiquement (fenetre reduite) a
-    echo l'ouverture de session ^(entree de registre, methode de secours^).
-    echo Pour annuler : demarrage_auto.bat /off
+    echo SQ Mixer demarrera desormais automatiquement en arriere-plan
+    echo ^(sans fenetre^) a l'ouverture de session ^(entree de registre,
+    echo methode de secours^). Pour annuler : demarrage_auto.bat /off
 )
 
 :fin

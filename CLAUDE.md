@@ -35,7 +35,8 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
 | `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
-| `demarrage_auto.bat` | Pose/retire l'auto-lancement de `demarrer.bat`, fenêtre réduite (`start /min`) : tâche planifiée (`schtasks`, déclencheur `onlogon`), avec repli sur `HKCU\...\Run` si refusée. |
+| `demarrage_auto.bat` | Pose/retire l'auto-lancement de `demarrer.bat` via `demarrer_cache.vbs` (sans fenetre) : tâche planifiée (`schtasks`, déclencheur `onlogon`), avec repli sur `HKCU\...\Run` si refusée. |
+| `demarrer_cache.vbs` | `WScript.Shell.Run ..., 0, False` : lance `demarrer.bat` sans fenêtre ni icône dans la barre des tâches. |
 | `mettre_a_jour.bat` | Recale le dossier sur `origin/main` (GitHub) sans toucher `config.json`/`presets/`. |
 | `construire_exe.bat` | Compile un exécutable autonome via PyInstaller. |
 | `creer_raccourci.bat` | Crée le raccourci bureau. |
@@ -121,15 +122,23 @@ CurrentVersion\Run`, qui n'a jamais besoin de droits admin et est
 rarement bloquee (mecanisme utilise par la plupart des applications
 grand public pour se lancer au demarrage).
 
-**Lancer une tache/entree de registre reduite : `cmd /c start "" /min
-"cible"`, inline.** `schtasks /create /tr` et `reg add /d` n'ont pas
-d'option directe pour demarrer la fenetre reduite ; il faut passer par
-`start /min`. Le premier `""` est le titre vide attendu par `start`
-avant la commande, pas une erreur de frappe — sans lui, `start` prend
-le chemin cible pour un titre. Ecrit inline dans la commande `schtasks`/
-`reg`, jamais via une variable `set` intermediaire : la chaine contient
-des guillemets echappes (`\"`) qui ne survivent pas franchement a un
-aller-retour par une variable d'environnement batch.
+**`start /min` ne suffit pas a empecher une fermeture accidentelle.**
+Premiere version : `cmd /c start "" /min "demarrer.bat"` (le premier
+`""` est le titre vide attendu par `start` avant la commande — sans
+lui, `start` prend le chemin cible pour un titre). Ca reduit bien la
+fenetre, mais elle reste une icone cliquable dans la barre des taches,
+fermable par megarde pendant un direct. Pour une fenetre vraiment
+invisible (aucune icone), il faut `WScript.Shell.Run commande, 0,
+False` depuis un `.vbs` (`demarrer_cache.vbs`) : `schtasks`/`reg`
+pointent sur `wscript.exe "demarrer_cache.vbs"`, qui lance lui-meme
+`demarrer.bat` cache. Le navigateur n'est pas concerne (commande
+separee lancee par `demarrer.bat`) : il reste la seule interface
+visible, et la fermer ne tue pas le moteur audio — contrairement a la
+console, d'ou l'interet de la rendre impossible a atteindre par erreur.
+Ecrit inline dans la commande `schtasks`/`reg`, jamais via une variable
+`set` intermediaire : la chaine contient des guillemets echappes
+(`\"`) qui ne survivent pas franchement a un aller-retour par une
+variable d'environnement batch.
 
 **Le moteur audio doit reessayer, pas echouer une seule fois.** Constate
 en usage reel : au lancement automatique de Windows, l'ASIO de la SQ et
