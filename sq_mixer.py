@@ -25,6 +25,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -904,7 +905,18 @@ def main():
 
 
 def _run():
-    code = main()
+    try:
+        code = main()
+    except Exception:
+        # Filet de securite : sans ca, une erreur non prevue ailleurs dans
+        # le code plantait le processus avec une trace Python brute,
+        # invisible au lancement automatique (fenetre cachee) et sans
+        # retour dans journal.log. demarrer.bat relance tout le processus
+        # quand main() renvoie un code non nul, donc ne jamais planter ici
+        # est ce qui permet au reessai automatique de s'enclencher.
+        log("\n*** Erreur inattendue, SQ Mixer s'arrete. ***")
+        log(traceback.format_exc())
+        code = 1
     if getattr(sys, "frozen", False) and code != 0:
         input("\nUne erreur est survenue. Appuyez sur Entree pour fermer.")
     return code

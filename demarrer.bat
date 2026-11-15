@@ -79,7 +79,24 @@ echo.
 timeout /t 3 >nul
 
 start "" http://localhost:8770
+
+REM sq_mixer.py reessaie deja lui-meme la detection audio pendant 2
+REM minutes. S'il s'arrete quand meme (peripherique debranche en cours de
+REM route, erreur inattendue), on relance tout le processus au lieu
+REM d'abandonner : au lancement automatique (fenetre cachee), personne
+REM n'est la pour le refaire a la main. Consultez journal.log pour le
+REM detail de chaque tentative.
+set TENTATIVE=0
+:relancer
+set /a TENTATIVE+=1
 "%PY%" sq_mixer.py
+if errorlevel 1 (
+    echo.
+    echo Le moteur s'est arrete de maniere inattendue ^(tentative %TENTATIVE%^).
+    echo Nouvel essai dans 30s... ^(Ctrl+C pour annuler^)
+    timeout /t 30 >nul
+    goto :relancer
+)
 
 :fin
 echo.

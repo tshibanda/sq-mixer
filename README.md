@@ -32,8 +32,13 @@ SQ-5 (USB-B) ──ASIO 32 ch──▶ SQ Mixer ──stéréo──▶ VB-Cable
 
 Placez le dossier dans un endroit stable (`C:\regie` par exemple), puis :
 
-- `demarrer.bat` — lance tout ; crée l'environnement Python au premier appel
-- `creer_raccourci.bat` — pose un raccourci sur le Bureau (une seule fois)
+- `demarrer.bat` — lance tout ; crée l'environnement Python au premier
+  appel. Si le moteur s'arrête de façon inattendue, il est relancé
+  automatiquement (toutes les 30s, indéfiniment) : le démarrage ne doit
+  jamais rester planté, que ce soit au démarrage de Windows ou lancé à
+  la main
+- `creer_raccourci.bat` — pose un raccourci sur le Bureau (une seule
+  fois), lui aussi sans console visible (via `demarrer_cache.vbs`)
 - `demarrage_auto.bat` — lance SQ Mixer automatiquement **en
   arrière-plan, sans fenêtre** (via `demarrer_cache.vbs`), à l'ouverture
   de session Windows — impossible à fermer par mégarde depuis la barre

@@ -34,12 +34,12 @@ Sur macOS le problème ne se pose pas : la SQ est class-compliant Core Audio.
 | `journal.log` | Généré par `log()` : trace des démarrages/erreurs, utile quand personne n'est devant la console (lancement automatique). |
 | `test_asio.py` | Diagnostic entrée : affiche les niveaux des 32 canaux en console. |
 | `test_sortie.py` | Diagnostic sortie : envoie une tonalité 1 kHz vers VB-Cable. |
-| `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. |
+| `demarrer.bat` | Lancement : venv, dépendances, moteur, navigateur. Relance le moteur automatiquement (30s) s'il s'arrête de façon inattendue. |
 | `demarrage_auto.bat` | Pose/retire l'auto-lancement de `demarrer.bat` via `demarrer_cache.vbs` (sans fenetre) : tâche planifiée (`schtasks`, déclencheur `onlogon`), avec repli sur `HKCU\...\Run` si refusée. |
 | `demarrer_cache.vbs` | `WScript.Shell.Run ..., 0, False` : lance `demarrer.bat` sans fenêtre ni icône dans la barre des tâches. |
 | `mettre_a_jour.bat` | Recale le dossier sur `origin/main` (GitHub) sans toucher `config.json`/`presets/`. |
 | `construire_exe.bat` | Compile un exécutable autonome via PyInstaller. |
-| `creer_raccourci.bat` | Crée le raccourci bureau. |
+| `creer_raccourci.bat` | Crée le raccourci bureau (via `demarrer_cache.vbs`, sans console visible). |
 
 ## Architecture du moteur
 
@@ -207,6 +207,23 @@ Windows"). Piege au passage : classer les candidats de sortie par
 complets) aurait fait choisir a tort le "CABLE In 16 Ch" plutot que le
 vrai cable stereo — le tri de sortie privilegie desormais le peripherique
 le plus proche de 2 canaux, pas le plus gros.
+
+**Deux couches de reessai : le process Python, puis le `.bat`.**
+`_detect_and_start()` couvre les echecs connus (peripherique pas pret,
+port deja pris) pendant 2 minutes a l'INTERIEUR du process Python. Mais
+si `main()` renvoie quand meme un code d'erreur — bug non prevu,
+peripherique debranche en cours de route, n'importe quoi d'autre —
+`demarrer.bat` relance desormais tout le process indefiniment (30s
+entre chaque essai), au lieu de s'arreter sur un `pause` qui ne sert a
+rien en lancement cache (personne pour l'appuyer). Cote Python,
+`_run()` entoure `main()` d'un `try/except Exception` qui journalise
+toute erreur imprevue avant de renvoyer 1 : sans ca, une exception non
+geee plantait le process avec une trace brute, invisible en fenetre
+cachee et absente de `journal.log` — `demarrer.bat` n'aurait meme pas
+su qu'il fallait reessayer. Les deux couches sont necessaires : l'une
+sans l'autre laisse un trou (le `.bat` ne peut pas reessayer une
+exception Python qu'il ne voit jamais sous forme de code de sortie
+non nul propre).
 
 ## Réglages côté console (hors code, mais bloquants)
 
