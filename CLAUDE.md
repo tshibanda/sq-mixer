@@ -225,6 +225,19 @@ sans l'autre laisse un trou (le `.bat` ne peut pas reessayer une
 exception Python qu'il ne voit jamais sous forme de code de sortie
 non nul propre).
 
+**Une tache/entree de demarrage deja posee ne se met pas a jour toute
+seule.** Constate en usage reel : apres le passage de `start /min` a
+`demarrer_cache.vbs` (fenetre vraiment cachee, pas juste reduite), la
+console continuait de s'afficher au demarrage automatique — la tache
+planifiee deja enregistree sur la machine pointait encore sur l'ancienne
+commande, et modifier le code ne la reecrit pas ; il faut relancer
+`demarrage_auto.bat` a la main pour ca, ce qui a ete oublie. `demarrer.bat`
+reecrit desormais la tache/l'entree de registre (si l'une des deux existe
+deja) avec la commande actuelle a CHAQUE lancement, pour que ce decalage
+ne puisse plus se reproduire pour un futur changement du mecanisme de
+lancement. Important : ca ne reecrit que ce qui existe deja — jamais
+d'activation depuis zero, pour respecter un `/off` explicite.
+
 ## Réglages côté console (hors code, mais bloquants)
 
 Ces réglages SQ conditionnent la présence de signal sur l'USB :

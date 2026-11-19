@@ -30,6 +30,26 @@ if not exist "ui.html" (
     goto :fin
 )
 
+REM --- Resynchronisation silencieuse de l'auto-demarrage -----------------
+REM Si une tache planifiee ou une entree de registre "SQ Mixer" existe
+REM deja (quelle que soit la methode/version qui l'a posee), on la
+REM reecrit avec la commande actuelle (demarrer_cache.vbs) a CHAQUE
+REM lancement. Sans ca, une evolution du mecanisme de lancement cache ne
+REM s'applique qu'apres avoir repense a relancer demarrage_auto.bat a la
+REM main - ce qui arrive. Si rien n'est configure (jamais active, ou
+REM desactive expres via demarrage_auto.bat /off), on ne touche a rien :
+REM ca ne doit jamais activer l'auto-demarrage tout seul.
+if exist "demarrer_cache.vbs" (
+    schtasks /query /tn "SQ Mixer" >nul 2>&1
+    if not errorlevel 1 (
+        schtasks /create /tn "SQ Mixer" /tr "wscript.exe \"%~dp0demarrer_cache.vbs\"" /sc onlogon /rl limited /f >nul 2>&1
+    )
+    reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "SQ Mixer" >nul 2>&1
+    if not errorlevel 1 (
+        reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "SQ Mixer" /t REG_SZ /d "wscript.exe \"%~dp0demarrer_cache.vbs\"" /f >nul 2>&1
+    )
+)
+
 REM --- Environnement virtuel --------------------------------------------
 REM On teste l'executable, pas le dossier : un .venv a moitie cree
 REM est la cause classique du "No module named numpy".
